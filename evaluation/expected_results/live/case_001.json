@@ -1,0 +1,52 @@
+[
+  {
+    "user_id": 95821,
+    "orders": 2,
+    "total_spend": 2032.9399948120117
+  },
+  {
+    "user_id": 59902,
+    "orders": 4,
+    "total_spend": 1703.1300010681152
+  },
+  {
+    "user_id": 26678,
+    "orders": 2,
+    "total_spend": 1552.0
+  },
+  {
+    "user_id": 11553,
+    "orders": 4,
+    "total_spend": 1514.6299934387207
+  },
+  {
+    "user_id": 39119,
+    "orders": 3,
+    "total_spend": 1454.8599967956543
+  },
+  {
+    "user_id": 99445,
+    "orders": 4,
+    "total_spend": 1450.3600006103516
+  },
+  {
+    "user_id": 98512,
+    "orders": 3,
+    "total_spend": 1395.0
+  },
+  {
+    "user_id": 23890,
+    "orders": 1,
+    "total_spend": 1375.7399971485138
+  },
+  {
+    "user_id": 28854,
+    "orders": 4,
+    "total_spend": 1367.8799924850464
+  },
+  {
+    "user_id": 64331,
+    "orders": 4,
+    "total_spend": 1359.3500137329102
+  }
+]

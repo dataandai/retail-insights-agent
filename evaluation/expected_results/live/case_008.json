@@ -1,0 +1,52 @@
+[
+  {
+    "category": "Clothing Sets",
+    "items": 209,
+    "return_rate": 0.1339712918660287
+  },
+  {
+    "category": "Socks & Hosiery",
+    "items": 3830,
+    "return_rate": 0.1195822454308094
+  },
+  {
+    "category": "Leggings",
+    "items": 3252,
+    "return_rate": 0.11039360393603936
+  },
+  {
+    "category": "Suits",
+    "items": 1055,
+    "return_rate": 0.1080568720379147
+  },
+  {
+    "category": "Jumpsuits & Rompers",
+    "items": 887,
+    "return_rate": 0.10484780157835401
+  },
+  {
+    "category": "Fashion Hoodies & Sweatshirts",
+    "items": 11862,
+    "return_rate": 0.10419828022255943
+  },
+  {
+    "category": "Sleep & Lounge",
+    "items": 11160,
+    "return_rate": 0.10331541218637993
+  },
+  {
+    "category": "Jeans",
+    "items": 12735,
+    "return_rate": 0.10318021201413427
+  },
+  {
+    "category": "Skirts",
+    "items": 2101,
+    "return_rate": 0.10280818657782008
+  },
+  {
+    "category": "Plus",
+    "items": 4240,
+    "return_rate": 0.10235849056603774
+  }
+]

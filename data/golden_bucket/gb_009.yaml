@@ -1,0 +1,18 @@
+question: What is gross margin by department?
+sql: 'SELECT p.department, SUM(oi.sale_price - p.cost) AS gross_margin, SAFE_DIVIDE(SUM(oi.sale_price
+  - p.cost), SUM(oi.sale_price)) AS margin_rate
+
+  FROM `bigquery-public-data.thelook_ecommerce.order_items` oi
+
+  JOIN `bigquery-public-data.thelook_ecommerce.products` p ON oi.product_id=p.id
+
+  GROUP BY p.department
+
+  ORDER BY gross_margin DESC'
+report: Compare absolute gross margin and margin rate by department side by side,
+  since a department can lead on one and lag on the other. Call out any department
+  where high revenue masks a thin margin rate — that's more actionable than the raw
+  gross-margin ranking alone.
+tags:
+- margin
+- department

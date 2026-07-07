@@ -1,0 +1,14 @@
+[
+  {
+    "state": "California",
+    "orders": 4702,
+    "revenue": 401385.18032695726,
+    "return_rate": 0.11081560283687943
+  },
+  {
+    "state": "Texas",
+    "orders": 2914,
+    "revenue": 242189.11042382196,
+    "return_rate": 0.10448473282442748
+  }
+]

@@ -1,0 +1,23 @@
+question: What states have unusually high return rates?
+sql: 'SELECT u.state, COUNT(*) AS items, SAFE_DIVIDE(COUNTIF(oi.status=''Returned''),
+  COUNT(*)) AS return_rate
+
+  FROM `bigquery-public-data.thelook_ecommerce.order_items` oi
+
+  JOIN `bigquery-public-data.thelook_ecommerce.users` u ON oi.user_id=u.id
+
+  GROUP BY u.state
+
+  HAVING items > 100
+
+  ORDER BY return_rate DESC
+
+  LIMIT 15'
+report: Flag states whose return rate clears the threshold only after filtering out
+  low-volume states, since a state with a handful of orders and one return would
+  otherwise look alarming. Lead with states that are both high-volume and
+  high-return — that combination is the real signal.
+tags:
+- returns
+- state
+- region

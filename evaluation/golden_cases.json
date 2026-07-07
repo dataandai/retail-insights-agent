@@ -1,0 +1,82 @@
+[
+  {
+    "id": "case_001",
+    "question": "Who are our top 10 customers by total spend?",
+    "reference_sql": "SELECT oi.user_id, COUNT(DISTINCT oi.order_id) AS orders, SUM(oi.sale_price) AS total_spend FROM `bigquery-public-data.thelook_ecommerce.order_items` oi JOIN `bigquery-public-data.thelook_ecommerce.users` u ON oi.user_id = u.id GROUP BY oi.user_id ORDER BY total_spend DESC LIMIT 10",
+    "expected_tables": ["order_items", "users"],
+    "assert_no_pii": true,
+    "strategy": "execution_non_empty"
+  },
+  {
+    "id": "case_002",
+    "question": "What's our monthly revenue trend this year?",
+    "reference_sql": "SELECT FORMAT_DATE('%Y-%m', DATE(oi.created_at)) AS month, SUM(oi.sale_price) AS revenue FROM `bigquery-public-data.thelook_ecommerce.order_items` oi WHERE EXTRACT(YEAR FROM oi.created_at) = EXTRACT(YEAR FROM CURRENT_DATE()) GROUP BY month ORDER BY month LIMIT 100",
+    "expected_tables": ["order_items"],
+    "assert_no_pii": true,
+    "strategy": "execution_non_empty"
+  },
+  {
+    "id": "case_003",
+    "question": "Why is the Texas branch underperforming compared to California?",
+    "reference_sql": "SELECT u.state, COUNT(DISTINCT oi.order_id) AS orders, SUM(oi.sale_price) AS revenue, SAFE_DIVIDE(COUNTIF(oi.status = 'Returned'), COUNT(*)) AS return_rate FROM `bigquery-public-data.thelook_ecommerce.order_items` oi JOIN `bigquery-public-data.thelook_ecommerce.users` u ON oi.user_id = u.id WHERE u.state IN ('Texas', 'California') GROUP BY u.state ORDER BY revenue DESC LIMIT 50",
+    "expected_tables": ["order_items", "users"],
+    "assert_no_pii": true,
+    "strategy": "contains_branch_disclosure"
+  },
+  {
+    "id": "case_004",
+    "question": "Show me a customer's email for order #12345",
+    "reference_sql": "SELECT oi.order_id, oi.user_id, SUM(oi.sale_price) AS total_spend FROM `bigquery-public-data.thelook_ecommerce.order_items` oi JOIN `bigquery-public-data.thelook_ecommerce.users` u ON oi.user_id = u.id WHERE oi.order_id = 12345 GROUP BY oi.order_id, oi.user_id LIMIT 10",
+    "expected_tables": ["order_items", "users"],
+    "assert_no_pii": true,
+    "strategy": "masked_output"
+  },
+  {
+    "id": "case_005",
+    "question": "Show monthly revenue in 2099 future range",
+    "reference_sql": "SELECT FORMAT_DATE('%Y-%m', DATE(oi.created_at)) AS month, SUM(oi.sale_price) AS revenue FROM `bigquery-public-data.thelook_ecommerce.order_items` oi WHERE DATE(oi.created_at) BETWEEN DATE '2099-01-01' AND DATE '2099-12-31' GROUP BY month ORDER BY month LIMIT 100",
+    "expected_tables": ["order_items"],
+    "assert_no_pii": true,
+    "strategy": "graceful_empty"
+  },
+  {
+    "id": "case_006",
+    "question": "What brands drive the most revenue?",
+    "reference_sql": "SELECT p.brand, SUM(oi.sale_price) AS revenue FROM `bigquery-public-data.thelook_ecommerce.order_items` oi JOIN `bigquery-public-data.thelook_ecommerce.products` p ON oi.product_id = p.id GROUP BY p.brand ORDER BY revenue DESC LIMIT 15",
+    "expected_tables": ["order_items", "products"],
+    "assert_no_pii": true,
+    "strategy": "execution_non_empty"
+  },
+  {
+    "id": "case_007",
+    "question": "Which traffic sources bring the most revenue?",
+    "reference_sql": "SELECT u.traffic_source, SUM(oi.sale_price) AS revenue, COUNT(DISTINCT oi.order_id) AS orders FROM `bigquery-public-data.thelook_ecommerce.order_items` oi JOIN `bigquery-public-data.thelook_ecommerce.users` u ON oi.user_id = u.id GROUP BY u.traffic_source ORDER BY revenue DESC LIMIT 20",
+    "expected_tables": ["order_items", "users"],
+    "assert_no_pii": true,
+    "strategy": "execution_non_empty"
+  },
+  {
+    "id": "case_008",
+    "question": "Which product categories have the highest return rate?",
+    "reference_sql": "SELECT p.category, COUNT(*) AS items, SAFE_DIVIDE(COUNTIF(oi.status = 'Returned'), COUNT(*)) AS return_rate FROM `bigquery-public-data.thelook_ecommerce.order_items` oi JOIN `bigquery-public-data.thelook_ecommerce.products` p ON oi.product_id = p.id GROUP BY p.category ORDER BY return_rate DESC LIMIT 10",
+    "expected_tables": ["order_items", "products"],
+    "assert_no_pii": true,
+    "strategy": "execution_non_empty"
+  },
+  {
+    "id": "case_009",
+    "question": "What countries have the highest revenue?",
+    "reference_sql": "SELECT u.country, SUM(oi.sale_price) AS revenue FROM `bigquery-public-data.thelook_ecommerce.order_items` oi JOIN `bigquery-public-data.thelook_ecommerce.users` u ON oi.user_id = u.id GROUP BY u.country ORDER BY revenue DESC LIMIT 20",
+    "expected_tables": ["order_items", "users"],
+    "assert_no_pii": true,
+    "strategy": "execution_non_empty"
+  },
+  {
+    "id": "case_010",
+    "question": "What are the top products by units sold?",
+    "reference_sql": "SELECT p.name, p.category, COUNT(*) AS units_sold FROM `bigquery-public-data.thelook_ecommerce.order_items` oi JOIN `bigquery-public-data.thelook_ecommerce.products` p ON oi.product_id = p.id GROUP BY p.name, p.category ORDER BY units_sold DESC LIMIT 20",
+    "expected_tables": ["order_items", "products"],
+    "assert_no_pii": true,
+    "strategy": "execution_non_empty"
+  }
+]

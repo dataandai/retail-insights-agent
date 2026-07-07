@@ -1,0 +1,12 @@
+[
+  {
+    "user_id": 101,
+    "total_spend": 1022.5,
+    "orders": 12
+  },
+  {
+    "user_id": 202,
+    "total_spend": 980.0,
+    "orders": 10
+  }
+]

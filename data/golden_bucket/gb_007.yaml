@@ -1,0 +1,20 @@
+question: Which distribution center branch has the most revenue?
+sql: 'SELECT dc.name AS distribution_center, SUM(oi.sale_price) AS revenue
+
+  FROM `bigquery-public-data.thelook_ecommerce.order_items` oi
+
+  JOIN `bigquery-public-data.thelook_ecommerce.products` p ON oi.product_id=p.id
+
+  JOIN `bigquery-public-data.thelook_ecommerce.distribution_centers` dc ON p.distribution_center_id=dc.id
+
+  GROUP BY distribution_center
+
+  ORDER BY revenue DESC'
+report: Disclose that "branch" is read here as the supply-side distribution center,
+  since the dataset has no physical stores. Rank centers by revenue and flag whether
+  the lead center's share is large enough to be a concentration risk, not just a
+  leaderboard fact.
+tags:
+- branch
+- distribution_center
+- revenue

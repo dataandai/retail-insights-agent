@@ -1,0 +1,15 @@
+# Local-first demo authentication for the CLI.
+# Production swap: replace src/security/auth.py with enterprise SSO/IAM and issue
+# user_id from the authenticated session, never from a self-declared CLI argument.
+# dev_token entries are plaintext demo credentials: set RETAIL_INSIGHTS_ALLOW_DEV_TOKENS=false
+# to reject them, and prefer token_env or token_sha256 (hex sha256 of the token) instead.
+users:
+  demo_manager:
+    token_env: DEMO_MANAGER_TOKEN
+    dev_token: demo-token
+  manager_a:
+    token_env: MANAGER_A_TOKEN
+    dev_token: manager-a-token
+  manager_b:
+    token_env: MANAGER_B_TOKEN
+    dev_token: manager-b-token

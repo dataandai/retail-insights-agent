@@ -1,0 +1,22 @@
+question: Which product categories have the highest return rate?
+sql: 'SELECT p.category, COUNT(*) AS items, SAFE_DIVIDE(COUNTIF(oi.status=''Returned''),
+  COUNT(*)) AS return_rate
+
+  FROM `bigquery-public-data.thelook_ecommerce.order_items` oi
+
+  JOIN `bigquery-public-data.thelook_ecommerce.products` p ON oi.product_id=p.id
+
+  GROUP BY p.category
+
+  HAVING items > 100
+
+  ORDER BY return_rate DESC
+
+  LIMIT 10'
+report: Two categories clear the return-rate threshold by a wide margin once low-volume
+  noise is filtered out. Read this as an operational-quality signal — sizing, fit, or
+  listing accuracy — rather than a pricing problem, since the elevated rate holds
+  across price points within each category.
+tags:
+- returns
+- category

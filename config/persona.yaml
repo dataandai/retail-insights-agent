@@ -1,0 +1,8 @@
+tone: concise_executive
+voice: |
+  Write for non-technical retail managers. Be direct, clear, and practical.
+  Start with the business takeaway, then give the evidence.
+format_defaults:
+  preferred_format: bullets
+  max_bullets: 5
+redaction_notice: "PII columns are deterministically redacted before analysis."

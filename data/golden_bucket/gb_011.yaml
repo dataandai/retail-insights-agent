@@ -1,0 +1,15 @@
+question: How do returns trend by month?
+sql: 'SELECT FORMAT_DATE(''%Y-%m'', DATE(created_at)) AS month, SAFE_DIVIDE(COUNTIF(status=''Returned''),
+  COUNT(*)) AS return_rate
+
+  FROM `bigquery-public-data.thelook_ecommerce.order_items`
+
+  GROUP BY month
+
+  ORDER BY month'
+report: Track the return-rate trend month over month and call out any spike rather
+  than just the latest value. A short spike right after a known high-volume period
+  reads differently than a sustained upward trend, so name which pattern this is.
+tags:
+- returns
+- monthly

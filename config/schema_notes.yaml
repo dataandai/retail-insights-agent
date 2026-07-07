@@ -1,0 +1,40 @@
+dataset: bigquery-public-data.thelook_ecommerce
+allowed_tables:
+  orders:
+    description: Order-level facts.
+    expected_columns: [order_id, user_id, status, gender, created_at, returned_at, shipped_at, delivered_at, num_of_item, num_of_items]
+  order_items:
+    description: Line-item facts including sale_price.
+    expected_columns: [id, order_id, user_id, product_id, inventory_item_id, status, created_at, shipped_at, delivered_at, returned_at, sale_price]
+  products:
+    description: Product catalog and distribution-center link.
+    expected_columns: [id, cost, category, name, brand, retail_price, department, sku, distribution_center_id]
+  users:
+    description: Customer demographics and geography. Contains PII/quasi-PII.
+    expected_columns: [id, first_name, last_name, email, age, gender, state, street_address, postal_code, city, country, latitude, longitude, traffic_source, created_at]
+  distribution_centers:
+    description: Fulfillment centers, used for supply-side branch proxy.
+    expected_columns: [id, name, latitude, longitude]
+business_terms:
+  branch:
+    default_interpretation: demand_side_state
+    disclosure: "This dataset is from an online retailer with no physical branch table. I read 'branch' as the customer's state unless you ask for distribution centers."
+    interpretations:
+      demand_side_state:
+        label: "Demand-side proxy: customers' state"
+        mapping: "users.state / users.country"
+      supply_side_distribution_center:
+        label: "Supply-side proxy: distribution center"
+        mapping: "products.distribution_center_id -> distribution_centers.id"
+  region:
+    default_interpretation: demand_side_state
+    mapping: "users.state / users.country"
+pii_columns:
+  - email
+  - phone
+  - street_address
+  - postal_code
+pii_sql_generation_policy:
+  user_facing_projection: "Never SELECT raw PII or quasi-PII columns into result rows. Omit email, phone, street_address, and postal_code from projections even if the user asks for them."
+  allowed_internal_use: "PII columns may only be referenced for internal filtering or joins when unavoidable; final result rows must contain non-identifying aggregates or ids only."
+  defense_in_depth: "BigQuery result rows are still passed through deterministic column denylist + regex masking before any LLM prompt."

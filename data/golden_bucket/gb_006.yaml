@@ -1,0 +1,22 @@
+question: Why is the Texas branch underperforming compared to California?
+sql: 'SELECT u.state, COUNT(DISTINCT oi.order_id) AS orders, SUM(oi.sale_price) AS
+  revenue, SAFE_DIVIDE(COUNTIF(oi.status=''Returned''), COUNT(*)) AS return_rate
+
+  FROM `bigquery-public-data.thelook_ecommerce.order_items` oi
+
+  JOIN `bigquery-public-data.thelook_ecommerce.users` u ON oi.user_id=u.id
+
+  WHERE u.state IN (''Texas'',''California'')
+
+  GROUP BY u.state
+
+  ORDER BY revenue DESC'
+report: Disclose upfront that "branch" is read as customer state, since this is an
+  online-only retailer with no physical branches. California outsells Texas on both
+  orders and revenue, but the return-rate gap is the more useful diagnostic — a
+  meaningfully higher Texas return rate points to a fulfillment or expectations
+  problem, not just weaker demand.
+tags:
+- branch
+- state
+- underperformance

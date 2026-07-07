@@ -1,0 +1,19 @@
+question: Who are our top 10 customers by total spend?
+sql: 'SELECT oi.user_id, COUNT(DISTINCT oi.order_id) AS orders, SUM(oi.sale_price)
+  AS total_spend
+
+  FROM `bigquery-public-data.thelook_ecommerce.order_items` oi
+
+  GROUP BY oi.user_id
+
+  ORDER BY total_spend DESC
+
+  LIMIT 10'
+report: The top 10 customers by total spend cluster well above the median basket size,
+  driven mostly by order frequency rather than one large purchase. Customer email and
+  phone are intentionally left out of this view — PII is never surfaced, even when it
+  would help explain who these customers are.
+tags:
+- customers
+- revenue
+- pii

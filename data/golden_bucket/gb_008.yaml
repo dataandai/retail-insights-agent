@@ -1,0 +1,18 @@
+question: What brands drive the most revenue?
+sql: 'SELECT p.brand, SUM(oi.sale_price) AS revenue
+
+  FROM `bigquery-public-data.thelook_ecommerce.order_items` oi
+
+  JOIN `bigquery-public-data.thelook_ecommerce.products` p ON oi.product_id=p.id
+
+  GROUP BY p.brand
+
+  ORDER BY revenue DESC
+
+  LIMIT 15'
+report: Rank brands by revenue and call out how concentrated the top of the list is —
+  if the top few brands account for a disproportionate share of revenue, that
+  concentration is the headline, not the full ranked list.
+tags:
+- brand
+- revenue

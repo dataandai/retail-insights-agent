@@ -1,0 +1,19 @@
+question: What is revenue by product category?
+sql: 'SELECT p.category, SUM(oi.sale_price) AS revenue
+
+  FROM `bigquery-public-data.thelook_ecommerce.order_items` oi
+
+  JOIN `bigquery-public-data.thelook_ecommerce.products` p ON oi.product_id=p.id
+
+  GROUP BY p.category
+
+  ORDER BY revenue DESC
+
+  LIMIT 20'
+report: Revenue is concentrated in a handful of categories rather than spread evenly;
+  lead with how much of total revenue the top two or three categories account for
+  before listing the full ranking.
+tags:
+- products
+- category
+- revenue

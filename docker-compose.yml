@@ -1,0 +1,61 @@
+services:
+  agent:
+    build: .
+    volumes:
+      # Persist reports database and logs on the host
+      - ./local_data:/app/local_data
+      - ./logs:/app/logs
+      # Mount the GCP service account key (read-only)
+      - ${GCP_KEY_HOST_PATH:-./secrets/key.json}:/app/gcp-key.json:ro
+    env_file:
+      - .env
+    environment:
+      # Override the host GOOGLE_APPLICATION_CREDENTIALS path from .env with the
+      # container-internal path the key is mounted at above.
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-key.json
+      - USE_STUB_LLM=false
+      - USE_MOCK_BQ=false
+    stdin_open: true
+    tty: true
+
+  evals:
+    build: .
+    volumes:
+      - ./local_data:/app/local_data
+      - ./logs:/app/logs
+      - ./evaluation:/app/evaluation
+      - ${GCP_KEY_HOST_PATH:-./secrets/key.json}:/app/gcp-key.json:ro
+    env_file:
+      - .env
+    environment:
+      # Same container-internal remap as the agent service above.
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-key.json
+      - USE_STUB_LLM=false
+      - USE_MOCK_BQ=false
+    command: ["python", "evaluation/run_evals.py", "--mode", "live"]
+
+  evals-mock:
+    build: .
+    volumes:
+      - ./local_data:/app/local_data
+      - ./logs:/app/logs
+      - ./evaluation:/app/evaluation
+    env_file:
+      - .env
+    environment:
+      - USE_STUB_LLM=true
+      - USE_MOCK_BQ=true
+    command: ["python", "evaluation/run_evals.py", "--mode", "mock"]
+
+  tests:
+    build: .
+    volumes:
+      - ./tests:/app/tests
+      - ./local_data:/app/local_data
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      - USE_STUB_LLM=true
+      - USE_MOCK_BQ=true
+    command: ["python", "-m", "pytest", "-q"]

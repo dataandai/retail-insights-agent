@@ -1,0 +1,19 @@
+question: What are the top products by units sold?
+sql: 'SELECT p.name, p.category, COUNT(*) AS units_sold
+
+  FROM `bigquery-public-data.thelook_ecommerce.order_items` oi
+
+  JOIN `bigquery-public-data.thelook_ecommerce.products` p ON oi.product_id=p.id
+
+  GROUP BY p.name, p.category
+
+  ORDER BY units_sold DESC
+
+  LIMIT 20'
+report: Rank products by units sold rather than revenue, since a high-unit, low-price
+  item can outrank a high-revenue item here. Note when the units leaderboard and a
+  revenue leaderboard would disagree — that mismatch is often the more interesting
+  merchandising finding.
+tags:
+- products
+- units

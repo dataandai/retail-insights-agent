@@ -1,0 +1,18 @@
+question: What's our monthly revenue trend this year?
+sql: 'SELECT FORMAT_DATE(''%Y-%m'', DATE(created_at)) AS month, SUM(sale_price) AS
+  revenue
+
+  FROM `bigquery-public-data.thelook_ecommerce.order_items`
+
+  WHERE EXTRACT(YEAR FROM created_at)=EXTRACT(YEAR FROM CURRENT_DATE())
+
+  GROUP BY month
+
+  ORDER BY month'
+report: Monthly revenue grew steadily through the first two quarters, then plateaued;
+  the most recent month sits close to the year's average rather than clearly above it.
+  Frame the takeaway around the flattening trend, not just the raw monthly totals.
+tags:
+- monthly
+- time-series
+- revenue

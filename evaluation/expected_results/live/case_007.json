@@ -1,0 +1,27 @@
+[
+  {
+    "traffic_source": "Search",
+    "revenue": 7488290.988246653,
+    "orders": 87450
+  },
+  {
+    "traffic_source": "Organic",
+    "revenue": 1611763.661441125,
+    "orders": 18457
+  },
+  {
+    "traffic_source": "Facebook",
+    "revenue": 667871.2608449459,
+    "orders": 7642
+  },
+  {
+    "traffic_source": "Email",
+    "revenue": 562405.4405834861,
+    "orders": 6477
+  },
+  {
+    "traffic_source": "Display",
+    "revenue": 438539.06057167053,
+    "orders": 5137
+  }
+]

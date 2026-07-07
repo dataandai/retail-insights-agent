@@ -1,0 +1,14 @@
+question: How are orders split by status?
+sql: 'SELECT status, COUNT(*) AS orders
+
+  FROM `bigquery-public-data.thelook_ecommerce.orders`
+
+  GROUP BY status
+
+  ORDER BY orders DESC'
+report: Delivered and shipped orders make up the large majority of volume, with
+  cancelled and returned orders each a single-digit share of the total. Lead with the
+  healthy completion rate before drilling into the smaller exception buckets.
+tags:
+- orders
+- status

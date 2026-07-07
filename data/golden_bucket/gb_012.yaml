@@ -1,0 +1,19 @@
+question: What countries have the highest revenue?
+sql: 'SELECT u.country, SUM(oi.sale_price) AS revenue
+
+  FROM `bigquery-public-data.thelook_ecommerce.order_items` oi
+
+  JOIN `bigquery-public-data.thelook_ecommerce.users` u ON oi.user_id=u.id
+
+  GROUP BY u.country
+
+  ORDER BY revenue DESC
+
+  LIMIT 20'
+report: Rank countries by revenue, treating country as the demand-side region proxy.
+  Call out how concentrated revenue is in the top country or two before listing the
+  full tail.
+tags:
+- region
+- country
+- revenue

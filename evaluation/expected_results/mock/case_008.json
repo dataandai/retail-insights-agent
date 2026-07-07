@@ -1,0 +1,12 @@
+[
+  {
+    "category": "Dresses",
+    "items": 3200,
+    "return_rate": 0.14
+  },
+  {
+    "category": "Jeans",
+    "items": 4100,
+    "return_rate": 0.09
+  }
+]

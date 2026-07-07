@@ -1,0 +1,16 @@
+question: Compare average order value by gender.
+sql: 'SELECT u.gender, SAFE_DIVIDE(SUM(oi.sale_price), COUNT(DISTINCT oi.order_id))
+  AS avg_order_value
+
+  FROM `bigquery-public-data.thelook_ecommerce.order_items` oi
+
+  JOIN `bigquery-public-data.thelook_ecommerce.users` u ON oi.user_id=u.id
+
+  GROUP BY u.gender'
+report: Compare average order value across the gender dimension using only
+  aggregated, non-identifying rows — no individual customer PII is needed or shown to
+  answer this. State the gap in relative terms (percentage difference) rather than
+  just the two raw averages.
+tags:
+- aov
+- demographics

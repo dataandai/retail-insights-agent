@@ -1,0 +1,12 @@
+[
+  {
+    "traffic_source": "Search",
+    "revenue": 310000.0,
+    "orders": 2400
+  },
+  {
+    "traffic_source": "Email",
+    "revenue": 175000.0,
+    "orders": 1300
+  }
+]
