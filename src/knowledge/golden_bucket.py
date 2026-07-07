@@ -160,7 +160,18 @@ class GoldenBucket:
         self.trios = self.load()
         self.embedding = embedding or self._make_embedding()
         self.store = store or LangGraphSemanticStore(self.embedding)
-        self._seed_store()
+        self.degraded_reason: str = ""
+        try:
+            self._seed_store()
+        except Exception as exc:
+            # Startup must survive embedding-provider failures (e.g. free-tier 429 quota
+            # exhaustion): rebuild the whole index with the deterministic embedder so the
+            # query and document vector spaces still match. Retrieval quality degrades;
+            # the session does not die. The degradation is surfaced via degraded_reason.
+            self.degraded_reason = f"embedding provider failed during seeding, using deterministic fallback: {exc}"
+            self.embedding = DeterministicEmbedding()
+            self.store = LangGraphSemanticStore(self.embedding)
+            self._seed_store()
 
     @staticmethod
     def _make_embedding():
@@ -192,8 +203,13 @@ class GoldenBucket:
         self._seed_store()
 
     def search(self, question: str, k: int = 3) -> list[GoldenTrio]:
-        query_embedding = self.embedding.embed(question, task_type="RETRIEVAL_QUERY")
-        semantic = self.store.search(GOLDEN_NAMESPACE, question, query_embedding, k=k)
+        try:
+            query_embedding = self.embedding.embed(question, task_type="RETRIEVAL_QUERY")
+            semantic = self.store.search(GOLDEN_NAMESPACE, question, query_embedding, k=k)
+        except Exception:
+            # Mid-session embedding failure (rate limit, network): the lexical fallback
+            # still grounds SQL generation in the Golden Bucket instead of failing the turn.
+            semantic = []
         if semantic:
             return semantic
         return self._lexical_fallback(question, k=k)

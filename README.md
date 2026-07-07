@@ -19,7 +19,7 @@ python -m src.cli --user-id demo_manager --auth-token demo-token
 Expected local checks:
 
 ```text
-92 passed
+94 passed
 Pass rate: 10/10 = 100%
 ```
 
@@ -67,7 +67,16 @@ MAX_BYTES_BILLED=200000000
 MAX_ROWS_RETURNED=100
 ```
 
-The model name is intentionally read from `GEMINI_MODEL_NAME`; Gemini model names change, so do not bury a model string in application logic. To record the resolved LangGraph version after installation:
+The model name is intentionally read from `GEMINI_MODEL_NAME`; Gemini model names change, so do not bury a model string in application logic.
+
+Free-tier quota note: AI Studio free keys have small daily generate quotas per model
+(observed: ~20/day for `gemini-3.5-flash`, far higher for `gemini-3.1-flash-lite`) and a
+separate embedding quota. When the embedding quota runs out, the agent degrades gracefully:
+Golden Bucket retrieval falls back to a deterministic local index (logged as
+`golden_bucket: degraded`) and the session keeps working. When the generate quota runs out
+mid-turn, the turn fails with a controlled error and the CLI stays alive. For a full
+`evaluation/run_evals.py --mode live` pass, prefer `gemini-3.1-flash-lite` as
+`GEMINI_MODEL_NAME` or a paid-tier key. To record the resolved LangGraph version after installation:
 
 ```bash
 python - <<'PY'

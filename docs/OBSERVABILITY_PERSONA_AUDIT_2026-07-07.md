@@ -79,10 +79,41 @@ works identically for the stub and the real Gemini client, and is transparent to
 **Tests:** `tests/unit/test_observability.py`; verified live (`self_heal_retries: 2` for the
 same session shape, `node="llm"` events carry the prompt and response).
 
+## Follow-up findings from the live re-verification round (same day)
+
+### #26 — Embedding-quota exhaustion crashed the agent at startup (resilience, high)
+
+**Observed live:** once the Gemini free-tier embedding quota
+(`embed_content_free_tier_requests`, 1000/day) ran out, `GoldenBucket` seeding raised
+429 inside `RetailInsightsAgent.__init__` and the whole process died — no CLI, no evals.
+
+**Fix:** seeding failures rebuild the index with the deterministic embedder (query and
+document vector spaces stay consistent), record `degraded_reason`, and the agent logs a
+`golden_bucket: degraded` startup event. Mid-session query-embedding failures fall back to
+the existing lexical ranking instead of failing the turn. Verified live after the fix: with
+the embedding quota still exhausted, the agent starts, answers, and logs the degradation.
+**Tests:** `tests/unit/test_golden_bucket_resilience.py`.
+
+### #27 — Windows temp-dir cleanup crash discarded live eval results (observability, low)
+
+**Observed live:** `run_evals.py` finished all 10 (billed) live cases, then crashed in
+`TemporaryDirectory` cleanup (`NotADirectoryError` on a lingering SQLite handle) *before*
+printing the pass rate. **Fix:** `TemporaryDirectory(ignore_cleanup_errors=True)`.
+
+### Live-mode quota context for reviewers
+
+Free-tier Gemini keys have small daily generate quotas (observed: 20/day for
+`gemini-3.5-flash`, far higher for `gemini-3.1-flash-lite`). A same-day live eval run with
+`gemini-3.1-flash-lite` scored 6/10 — the 4 failures were LLM output variance
+(execution-signature mismatches, one table-choice difference, one healer rewrite of an
+out-of-range year) rather than pipeline defects; with the quota exhausted the agent now
+degrades per #26 instead of crashing. Live accuracy remains credential/quota-dependent, as
+the compliance matrix has always marked it (`EXTERNAL`).
+
 ## Verification
 
 ```text
-python -m pytest -q            -> 92 passed (was 75; +17 regression tests)
+python -m pytest -q            -> 94 passed (was 75; +19 regression tests)
 python evaluation/run_evals.py -> Pass rate: 10/10 = 100%
 ```
 

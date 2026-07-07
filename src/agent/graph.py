@@ -100,6 +100,8 @@ class RetailInsightsAgent:
         self._compiled_graph: Any | None = None
         for warning in self.schema_warnings:
             self.log.event(thread_id="startup", turn_id="schema", node="schema_reconcile", event="warning", warning=warning)
+        if self.bucket.degraded_reason:
+            self.log.event(thread_id="startup", turn_id="golden_bucket", node="golden_bucket", event="degraded", reason=self.bucket.degraded_reason)
         self.log.event(thread_id="startup", turn_id="schema", node="pii_runtime_columns", event="ok", columns=sorted(runtime_pii_columns()))
 
     def _load_schema_notes(self) -> dict[str, Any]:

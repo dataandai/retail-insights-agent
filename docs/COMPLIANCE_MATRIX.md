@@ -31,7 +31,7 @@ python evaluation/run_evals.py
 Expected at the time of this package:
 
 ```text
-92 passed
+94 passed
 Pass rate: 10/10 = 100%
 ```
 

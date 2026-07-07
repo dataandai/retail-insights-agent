@@ -113,7 +113,10 @@ def run(mode: str, refresh_cache: bool) -> int:
         os.environ["USE_MOCK_BQ"] = "false"
         runner = make_runner()
 
-    with tempfile.TemporaryDirectory() as tmp:
+    # ignore_cleanup_errors: on Windows a lingering SQLite handle can make rmtree fail
+    # at context exit, which would otherwise crash the runner *after* all (billed) live
+    # cases ran but *before* the results are printed.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         os.environ["SQLITE_PATH"] = str(Path(tmp) / "reports.sqlite3")
         os.environ["LOG_PATH"] = str(Path(tmp) / "agent.jsonl")
         store = ReportsStore(Path(tmp) / "reports.sqlite3")
