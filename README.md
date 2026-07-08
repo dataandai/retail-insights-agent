@@ -4,6 +4,42 @@ CLI-only Retail Insights Agent for a retail take-home assignment. The prototype 
 
 The repository is intentionally local-first: no mandatory external services beyond BigQuery for real data runs, and Docker is optional, not required. Local smoke tests use a deterministic stub LLM and mock BigQuery runner so reviewers can run the repo immediately either natively (below) or via the included `Dockerfile`/`docker-compose.yml` (see [Docker (optional)](#docker-optional)).
 
+## Architecture
+
+```mermaid
+flowchart TD
+    U[Store / Regional Manager] --> CLI[src/cli.py REPL<br/>local auth token + durable thread_id<br/>owner-scoped user identity]
+    CLI --> G[RetailInsightsAgent<br/>compiled LangGraph StateGraph runtime]
+    G --> R[1 Router / intent classifier]
+    R -->|schema question| S[Schema answer<br/>INFORMATION_SCHEMA startup introspection<br/>+ schema_notes reconciliation]
+    R -->|analysis| GB[2 Golden Bucket retriever<br/>namespace: golden_bucket<br/>semantic embedding index<br/>local deterministic fallback]
+    GB --> SQLG[3 SQL generator<br/>few-shot Q -> SQL -> report trios]
+    SQLG --> VAL[4 sqlglot SQL validator<br/>single SELECT<br/>allow-listed tables<br/>no DDL/DML<br/>no semicolons]
+    VAL --> EXEC[5 Safe BigQuery executor<br/>dry_run<br/>MAX_BYTES_BILLED<br/>maximum_bytes_billed<br/>max_results row cap]
+    EXEC --> SH[6 Self-healer<br/>SQL error OR empty result<br/>shared max-2 retry budget<br/>data range hint]
+    SH -->|retry| GB
+    SH -->|exhausted with error| GF[Graceful failure<br/>surfaces real validation/execution error<br/>no report saved]
+    SH -->|ok or exhausted empty| PII[7 PII guard<br/>SQL projection block + column denylist<br/>regex post-generation]
+    PII --> REP[8 Persona-aware reporter<br/>user prefs + hot-reload persona.yaml<br/>same Golden Bucket trios also guide report style]
+    GB -.same retrieved trios.-> REP
+    REP --> OUT[Masked executive answer]
+    GF --> OUT
+    R -->|delete request| DEL[9 Resolve owner-scoped report IDs<br/>side-effect-free read]
+    DEL --> INT[LangGraph interrupt exact-token confirmation<br/>preview + expiration + stronger all-delete token]
+    INT --> SQLI[(SQLite<br/>reports prefs feedback audit)]
+    REP --> SQLI
+    CLI --> PREFS["/prefs /feedback /stats"]
+    PREFS --> SQLI
+    CONFIG[config/persona.yaml<br/>mtime hot reload] --> REP
+    NOTES[config/schema_notes.yaml<br/>branch mapping] --> R
+    EXEC --> BQ[(BigQuery<br/>bigquery-public-data.thelook_ecommerce<br/>read-only creds)]
+    G --> LOGS[logs/agent.jsonl<br/>payload node events + turn summaries<br/>opt-in LLM_TRACE prompt/response pairs]
+    LLM[Gemini primary<br/>.with_fallbacks OpenRouter/Ollama<br/>retry wrapper] --> SQLG
+    LLM --> REP
+```
+
+The full high-level design — technology-choice reasoning, data flow, error handling and fallback strategy, observability, and a requirement-by-requirement walkthrough — is in [docs/HLD.md](docs/HLD.md). The spec-to-implementation map is in [docs/COMPLIANCE_MATRIX.md](docs/COMPLIANCE_MATRIX.md).
+
 ## Quick start
 
 ```bash
