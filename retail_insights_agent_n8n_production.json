@@ -1,0 +1,437 @@
+{
+  "name": "Retail Insights Agent (Production)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Retail Insights Agent — production wiring\n\nCredentials required:\n1. Google Gemini API key -> Gemini node\n2. Google BigQuery (OAuth2 or Service Account) -> BigQuery Executor\n3. Postgres -> Save Report / Resolve / Delete nodes\n\nDB setup: run sql/reports_table.sql first.\n\nGolden Bucket is static few-shot (trios fit in-prompt;\nswap to a vector store node only if the bucket grows).",
+        "height": 320,
+        "width": 340
+      },
+      "id": "note-setup",
+      "name": "Setup Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-1560, 40]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "chat-trigger",
+      "name": "Manager Chat",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [-1180, 300],
+      "webhookId": "retail-insights-chat"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Classify the manager question into exactly one intent.\n\nQuestion: {{ $json.chatInput }}\n\nIntents:\n- schema: questions about available tables, columns, data structure\n- analysis: business questions requiring SQL over the ecommerce dataset\n- delete: requests to delete saved reports\n\nRespond with ONLY the intent word, nothing else.",
+        "options": {}
+      },
+      "id": "intent-router",
+      "name": "Intent Router",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [-940, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Capture chat context ONCE and carry it in the data flow.\n// Downstream nodes must read from $json, not from cross-node refs —\n// cross-node refs break on the retry path.\nconst intentRaw = String($json.text ?? $json.output ?? '').toLowerCase().trim();\nlet intent = 'analysis';\nif (intentRaw.includes('schema')) intent = 'schema';\nelse if (intentRaw.includes('delete')) intent = 'delete';\n\nlet chatInput = '';\nlet sessionId = '';\ntry {\n  const mc = $('Manager Chat').first().json;\n  chatInput = mc.chatInput ?? '';\n  sessionId = mc.sessionId ?? 'anonymous';\n} catch (e) {}\n\nreturn [{ json: { intent, chatInput, sessionId, retryCount: 0, retryHint: 'none' } }];"
+      },
+      "id": "carry-context",
+      "name": "Carry Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-700, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {"caseSensitive": false, "leftValue": "", "typeValidation": "strict"},
+                "conditions": [
+                  {"leftValue": "={{ $json.intent }}", "rightValue": "schema", "operator": {"type": "string", "operation": "equals"}}
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "schema"
+            },
+            {
+              "conditions": {
+                "options": {"caseSensitive": false, "leftValue": "", "typeValidation": "strict"},
+                "conditions": [
+                  {"leftValue": "={{ $json.intent }}", "rightValue": "analysis", "operator": {"type": "string", "operation": "equals"}}
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "analysis"
+            },
+            {
+              "conditions": {
+                "options": {"caseSensitive": false, "leftValue": "", "typeValidation": "strict"},
+                "conditions": [
+                  {"leftValue": "={{ $json.intent }}", "rightValue": "delete", "operator": {"type": "string", "operation": "equals"}}
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "delete"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "route-switch",
+      "name": "Route by Intent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [-460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const tables = ['users', 'orders', 'order_items', 'products', 'distribution_centers', 'inventory_items', 'events'];\nreturn [{ json: { answer: `Available tables: ${tables.join(', ')}. Note: 'branch' maps to users.state (online retailer, no physical branches); distribution center questions use products.distribution_center_id.` } }];"
+      },
+      "id": "schema-answer",
+      "name": "Schema Answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-220, 60]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Static few-shot Golden Bucket.\n// Curated trios fit comfortably in-prompt; a vector store adds\n// latency and an embedding dependency for zero retrieval benefit\n// at this scale. Swap to a vector store node if the bucket grows\n// past what fits in the prompt budget.\nconst trios = [\n  { q: 'Who are our top 10 customers by total spend?', sql: 'SELECT o.user_id, SUM(oi.sale_price) AS total_spend, COUNT(DISTINCT o.order_id) AS orders FROM `bigquery-public-data.thelook_ecommerce.orders` o JOIN `bigquery-public-data.thelook_ecommerce.order_items` oi ON o.order_id = oi.order_id GROUP BY o.user_id ORDER BY total_spend DESC LIMIT 10' },\n  { q: 'What are the top selling products this month?', sql: 'SELECT p.name AS product_name, COUNT(oi.id) AS units_sold, SUM(oi.sale_price) AS revenue FROM `bigquery-public-data.thelook_ecommerce.order_items` oi JOIN `bigquery-public-data.thelook_ecommerce.products` p ON oi.product_id = p.id GROUP BY p.name ORDER BY units_sold DESC LIMIT 10' },\n  { q: 'Compare revenue and return rates by state', sql: 'SELECT u.state, SUM(oi.sale_price) AS revenue, COUNT(DISTINCT o.order_id) AS orders, SAFE_DIVIDE(COUNTIF(oi.status = \"Returned\"), COUNT(oi.id)) AS return_rate FROM `bigquery-public-data.thelook_ecommerce.users` u JOIN `bigquery-public-data.thelook_ecommerce.orders` o ON u.id = o.user_id JOIN `bigquery-public-data.thelook_ecommerce.order_items` oi ON o.order_id = oi.order_id GROUP BY u.state ORDER BY revenue DESC' },\n  { q: 'Monthly revenue trend for 2023', sql: 'SELECT DATE_TRUNC(DATE(o.created_at), MONTH) AS month, SUM(oi.sale_price) AS revenue FROM `bigquery-public-data.thelook_ecommerce.orders` o JOIN `bigquery-public-data.thelook_ecommerce.order_items` oi ON o.order_id = oi.order_id WHERE DATE(o.created_at) BETWEEN \"2023-01-01\" AND \"2023-12-31\" GROUP BY month ORDER BY month' },\n  { q: 'Which distribution centers ship the most inventory?', sql: 'SELECT dc.name AS distribution_center, COUNT(ii.id) AS items FROM `bigquery-public-data.thelook_ecommerce.distribution_centers` dc JOIN `bigquery-public-data.thelook_ecommerce.products` p ON p.distribution_center_id = dc.id JOIN `bigquery-public-data.thelook_ecommerce.inventory_items` ii ON ii.product_id = p.id GROUP BY dc.name ORDER BY items DESC' }\n];\n\nconst trioText = trios.map(t => `Q: ${t.q}\\nSQL: ${t.sql}`).join('\\n\\n');\n\nreturn [{ json: {\n  chatInput: $json.chatInput ?? '',\n  sessionId: $json.sessionId ?? 'anonymous',\n  retryCount: $json.retryCount ?? 0,\n  retryHint: $json.retryHint ?? 'none',\n  goldenBucketTrios: trioText\n} }];"
+      },
+      "id": "golden-bucket",
+      "name": "Golden Bucket",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-220, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You generate BigQuery SQL for bigquery-public-data.thelook_ecommerce.\n\nRules:\n- Exactly ONE SELECT statement, no semicolons, no DDL/DML\n- NEVER project PII columns: email, phone, street_address, postal_code\n- NEVER use SELECT * or table.* wildcards\n- Only these tables: users, orders, order_items, products, distribution_centers, inventory_items, events\n- 'branch' means users.state; distribution centers via products.distribution_center_id\n- Dataset spans 2019-2024; prefer explicit date ranges over CURRENT_DATE arithmetic\n\nFew-shot examples from prior analyst work:\n{{ $json.goldenBucketTrios ?? '' }}\n\nManager question: {{ $json.chatInput ?? 'unknown' }}\n\nRetry hint: {{ $json.retryHint ?? 'none' }}\n\nRespond with ONLY the SQL, no markdown fences.",
+        "options": {}
+      },
+      "id": "sql-generator",
+      "name": "SQL Generator",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [20, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Defensive input read: LLM Chain output key varies by n8n version.\nconst input = $input.first().json;\nconst raw = input.text ?? input.output ?? input.response ?? input.sql ?? '';\n\nif (!raw) {\n  throw new Error('No SQL text found in input. Available keys: ' + Object.keys(input).join(', '));\n}\n\n// Strip markdown fences — the model adds them despite instructions.\nconst sql = String(raw).trim()\n  .replace(/^```(sql)?\\s*/i, '')\n  .replace(/```\\s*$/, '')\n  .trim();\n\nconst errors = [];\n\nif (sql.includes(';')) errors.push('semicolon found');\nif (!/^\\s*SELECT\\b/i.test(sql)) errors.push('must start with SELECT');\nif (/\\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|MERGE|TRUNCATE)\\b/i.test(sql)) errors.push('DDL/DML forbidden');\nif (/SELECT\\s+\\*|\\.\\s*\\*/i.test(sql)) errors.push('wildcard projection forbidden');\n\nconst piiColumns = ['email', 'phone', 'street_address', 'postal_code'];\nconst projectionMatch = sql.match(/SELECT([\\s\\S]*?)FROM/i);\nif (projectionMatch) {\n  const projection = projectionMatch[1].toLowerCase();\n  for (const col of piiColumns) {\n    if (projection.includes(col)) errors.push(`PII column projected: ${col}`);\n  }\n}\n\nconst allowedTables = ['users', 'orders', 'order_items', 'products', 'distribution_centers', 'inventory_items', 'events'];\nconst tableRefs = [...sql.matchAll(/thelook_ecommerce\\.(\\w+)/gi)].map(m => m[1].toLowerCase());\nfor (const t of tableRefs) {\n  if (!allowedTables.includes(t)) errors.push(`table not allow-listed: ${t}`);\n}\n\n// Carry context forward in the data flow.\nlet chatInput = '';\nlet sessionId = 'anonymous';\nlet retryCount = 0;\ntry {\n  const gb = $('Golden Bucket').first().json;\n  chatInput = gb.chatInput ?? '';\n  sessionId = gb.sessionId ?? 'anonymous';\n  retryCount = gb.retryCount ?? 0;\n} catch (e) {}\n\nreturn [{ json: { sql, valid: errors.length === 0, errors, chatInput, sessionId, retryCount } }];"
+      },
+      "id": "sql-validator",
+      "name": "SQL Validator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {"leftValue": "={{ $json.valid }}", "rightValue": true, "operator": {"type": "boolean", "operation": "true"}}
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "valid-check",
+      "name": "Valid SQL?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "resource": "query",
+        "operation": "executeQuery",
+        "sqlQuery": "={{ $json.sql }}",
+        "options": {
+          "maximumBytesBilled": "200000000",
+          "maxResults": 100
+        }
+      },
+      "id": "bigquery-exec",
+      "name": "BigQuery Executor",
+      "type": "n8n-nodes-base.googleBigQuery",
+      "typeVersion": 2.1,
+      "position": [740, 200],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge BigQuery rows with carried context. BigQuery output does not\n// include our context fields, so re-attach them from SQL Validator\n// (same execution path, but keep the guard anyway).\nlet ctx = { chatInput: '', sessionId: 'anonymous', retryCount: 0, sql: '' };\ntry {\n  const v = $('SQL Validator').first().json;\n  ctx = { chatInput: v.chatInput ?? '', sessionId: v.sessionId ?? 'anonymous', retryCount: v.retryCount ?? 0, sql: v.sql ?? '' };\n} catch (e) {}\n\nreturn $input.all().map(i => ({ json: { ...i.json, ...ctx } }));"
+      },
+      "id": "attach-context",
+      "name": "Attach Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [980, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Self-heal: on execution error or empty result, loop back with a hint.\n// All context comes from the data flow — no fragile cross-node refs\n// on the error path.\nconst items = $input.all();\n\nconst first = items[0]?.json ?? {};\nconst retryCount = first.retryCount ?? 0;\nconst chatInput = first.chatInput ?? '';\nconst sessionId = first.sessionId ?? 'anonymous';\n\nlet trios = '';\ntry { trios = $('Golden Bucket').first().json.goldenBucketTrios ?? ''; } catch (e) {}\n\nconst hasError = items.some(i => i.json.error !== undefined || i.json.valid === false);\nconst dataKeys = items.length ? Object.keys(first).filter(k => !['chatInput','sessionId','retryCount','sql','valid','errors','error'].includes(k)) : [];\nconst isEmpty = items.length === 0 || dataKeys.length === 0;\n\nif ((hasError || isEmpty) && retryCount < 2) {\n  const firstErr = first.errors?.join('; ') ?? (first.error?.message ?? first.error) ?? 'query returned no rows — check date ranges (data spans 2019-2024)';\n  return [{ json: {\n    needsRetry: true,\n    retryCount: retryCount + 1,\n    retryHint: String(firstErr),\n    chatInput,\n    sessionId,\n    goldenBucketTrios: trios\n  } }];\n}\n\nreturn items.map(i => ({\n  json: { ...i.json, needsRetry: false, exhausted: (hasError || isEmpty) }\n}));"
+      },
+      "id": "self-healer",
+      "name": "Self-Healer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1220, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {"leftValue": "={{ $json.needsRetry }}", "rightValue": true, "operator": {"type": "boolean", "operation": "true"}}
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "retry-check",
+      "name": "Retry Needed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Deterministic PII masking — regex, not LLM-based, so it cannot be\n// prompt-injected out of masking.\nconst PII_PATTERNS = [\n  { re: /[\\w.+-]+@[\\w-]+\\.[\\w.]+/g, mask: '[EMAIL_REDACTED]' },\n  { re: /\\+?\\d[\\d\\s().-]{7,}\\d/g, mask: '[PHONE_REDACTED]' },\n  { re: /\\d{1,5}\\s+\\w+\\s+(street|st|avenue|ave|road|rd|blvd)\\b/gi, mask: '[ADDRESS_REDACTED]' }\n];\nconst PII_COLUMNS = ['email', 'phone', 'street_address', 'postal_code'];\n\nreturn $input.all().map(item => {\n  const masked = {};\n  for (const [key, val] of Object.entries(item.json)) {\n    if (PII_COLUMNS.includes(key.toLowerCase())) { masked[key] = '[REDACTED]'; continue; }\n    let v = val;\n    if (typeof v === 'string') for (const p of PII_PATTERNS) v = v.replace(p.re, p.mask);\n    masked[key] = v;\n  }\n  return { json: masked };\n});"
+      },
+      "id": "pii-guard",
+      "name": "PII Guard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1700, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You write concise executive reports for non-technical retail managers.\n\nTone: concise_executive\nFormat: short bullet points\n\nMasked query results:\n{{ JSON.stringify($input.all().map(i => i.json)) }}\n\nOriginal question: {{ $json.chatInput ?? 'business analysis' }}\n\nWrite a short business takeaway. Never include emails, phones, or addresses even if present. Start with 'Business takeaway (concise_executive):'",
+        "options": {}
+      },
+      "id": "reporter",
+      "name": "Persona Reporter",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [1940, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO reports (user_id, question, sql, report, created_at) VALUES ($1, $2, $3, $4, NOW()) RETURNING id",
+        "options": {
+          "queryReplacement": "={{ $('Carry Context').first().json.sessionId }},{{ $('Carry Context').first().json.chatInput }},{{ $('SQL Validator').first().json.sql }},{{ $json.text ?? $json.output }}"
+        }
+      },
+      "id": "save-report",
+      "name": "Save Report",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [2180, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "let exhausted = false;\ntry { exhausted = $('Self-Healer').first().json.exhausted ?? false; } catch (e) {}\n\nreturn [{ json: {\n  event: 'turn_summary',\n  turn_id: $execution.id,\n  outcome: exhausted ? 'graceful_failure' : 'ok',\n  report_id: $json.id ?? null,\n  timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "telemetry",
+      "name": "Telemetry Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2420, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, question, created_at FROM reports WHERE user_id = $1 AND (question ILIKE '%' || $2 || '%' OR report ILIKE '%' || $2 || '%') ORDER BY created_at DESC",
+        "options": {
+          "queryReplacement": "={{ $json.sessionId }},{{ $json.chatInput }}"
+        }
+      },
+      "id": "resolve-reports",
+      "name": "Resolve Owner Reports",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [-220, 540]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Preview + collect matched ids for the scoped delete after confirmation.\nconst items = $input.all();\nconst ids = items.map(i => i.json.id).filter(id => id !== undefined);\n\nlet sessionId = 'anonymous';\ntry { sessionId = $('Carry Context').first().json.sessionId ?? 'anonymous'; } catch (e) {}\n\nconst preview = items.map(i => `#${i.json.id}: ${i.json.question} (${i.json.created_at})`).join('\\n') || 'No matching reports.';\n\nreturn [{ json: {\n  matchedIds: ids,\n  sessionId,\n  message: `Matched ${ids.length} owner-scoped report(s). Preview:\\n${preview}\\n\\nType exactly CONFIRM DELETE to delete. Any other reply cancels. Expires in 10 minutes.`\n} }];"
+      },
+      "id": "prepare-delete",
+      "name": "Prepare Delete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [20, 540]
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "options": {
+          "webhookSuffix": "confirm-delete"
+        },
+        "limitWaitTime": true,
+        "resumeAmount": 10,
+        "resumeUnit": "minutes"
+      },
+      "id": "wait-confirm",
+      "name": "Wait for CONFIRM DELETE",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [260, 540],
+      "webhookId": "confirm-delete-hook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {"leftValue": "={{ $json.body ? $json.body.confirmation : $json.confirmation }}", "rightValue": "CONFIRM DELETE", "operator": {"type": "string", "operation": "equals"}}
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "token-check",
+      "name": "Exact Token?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [500, 540]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM reports WHERE user_id = $1 AND id = ANY(string_to_array($2, ',')::int[]) RETURNING id",
+        "options": {
+          "queryReplacement": "={{ $('Prepare Delete').first().json.sessionId }},{{ $('Prepare Delete').first().json.matchedIds.join(',') }}"
+        }
+      },
+      "id": "delete-reports",
+      "name": "Owner-Scoped Delete",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [740, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { answer: 'Cancelled. Nothing was deleted. Exact token required: CONFIRM DELETE' } }];"
+      },
+      "id": "cancel-delete",
+      "name": "Cancel Delete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [740, 620]
+    },
+    {
+      "parameters": {
+        "model": "gemini-2.5-flash",
+        "options": {}
+      },
+      "id": "gemini-model",
+      "name": "Gemini",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [-940, 560]
+    }
+  ],
+  "connections": {
+    "Manager Chat": {
+      "main": [[{"node": "Intent Router", "type": "main", "index": 0}]]
+    },
+    "Intent Router": {
+      "main": [[{"node": "Carry Context", "type": "main", "index": 0}]]
+    },
+    "Carry Context": {
+      "main": [[{"node": "Route by Intent", "type": "main", "index": 0}]]
+    },
+    "Route by Intent": {
+      "main": [
+        [{"node": "Schema Answer", "type": "main", "index": 0}],
+        [{"node": "Golden Bucket", "type": "main", "index": 0}],
+        [{"node": "Resolve Owner Reports", "type": "main", "index": 0}]
+      ]
+    },
+    "Golden Bucket": {
+      "main": [[{"node": "SQL Generator", "type": "main", "index": 0}]]
+    },
+    "SQL Generator": {
+      "main": [[{"node": "SQL Validator", "type": "main", "index": 0}]]
+    },
+    "SQL Validator": {
+      "main": [[{"node": "Valid SQL?", "type": "main", "index": 0}]]
+    },
+    "Valid SQL?": {
+      "main": [
+        [{"node": "BigQuery Executor", "type": "main", "index": 0}],
+        [{"node": "Self-Healer", "type": "main", "index": 0}]
+      ]
+    },
+    "BigQuery Executor": {
+      "main": [
+        [{"node": "Attach Context", "type": "main", "index": 0}],
+        [{"node": "Attach Context", "type": "main", "index": 0}]
+      ]
+    },
+    "Attach Context": {
+      "main": [[{"node": "Self-Healer", "type": "main", "index": 0}]]
+    },
+    "Self-Healer": {
+      "main": [[{"node": "Retry Needed?", "type": "main", "index": 0}]]
+    },
+    "Retry Needed?": {
+      "main": [
+        [{"node": "Golden Bucket", "type": "main", "index": 0}],
+        [{"node": "PII Guard", "type": "main", "index": 0}]
+      ]
+    },
+    "PII Guard": {
+      "main": [[{"node": "Persona Reporter", "type": "main", "index": 0}]]
+    },
+    "Persona Reporter": {
+      "main": [[{"node": "Save Report", "type": "main", "index": 0}]]
+    },
+    "Save Report": {
+      "main": [[{"node": "Telemetry Event", "type": "main", "index": 0}]]
+    },
+    "Resolve Owner Reports": {
+      "main": [[{"node": "Prepare Delete", "type": "main", "index": 0}]]
+    },
+    "Prepare Delete": {
+      "main": [[{"node": "Wait for CONFIRM DELETE", "type": "main", "index": 0}]]
+    },
+    "Wait for CONFIRM DELETE": {
+      "main": [[{"node": "Exact Token?", "type": "main", "index": 0}]]
+    },
+    "Exact Token?": {
+      "main": [
+        [{"node": "Owner-Scoped Delete", "type": "main", "index": 0}],
+        [{"node": "Cancel Delete", "type": "main", "index": 0}]
+      ]
+    },
+    "Gemini": {
+      "ai_languageModel": [
+        [
+          {"node": "Intent Router", "type": "ai_languageModel", "index": 0},
+          {"node": "SQL Generator", "type": "ai_languageModel", "index": 0},
+          {"node": "Persona Reporter", "type": "ai_languageModel", "index": 0}
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
