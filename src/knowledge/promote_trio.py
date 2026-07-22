@@ -4,7 +4,7 @@ Usage:
   python -m src.knowledge.promote_trio <feedback_id> --reviewed
 
 The script refuses placeholder data unless --allow-draft is used, preventing silent Golden
-Bucket poisoning while still giving reviewers a CLI-only promotion path.
+Bucket poisoning while still giving operators a CLI-only promotion path.
 """
 from __future__ import annotations
 

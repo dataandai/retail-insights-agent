@@ -1,6 +1,6 @@
 # Compliance Matrix — Master Build Prompt
 
-This file maps the implementation back to the master specification so reviewers can inspect the repo quickly.
+This file maps the implementation to the project requirements for quick inspection.
 
 | Spec area | Implementation |
 |---|---|

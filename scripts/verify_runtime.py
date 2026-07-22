@@ -1,4 +1,4 @@
-"""Strict runtime verification for reviewers.
+"""Strict runtime verification.
 
 This script fails if the real LangGraph runtime, SQLite checkpointer, sqlglot, and
 BigQuery packages required by the master prompt are not installed. It is separate from

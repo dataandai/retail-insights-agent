@@ -36,7 +36,7 @@ flowchart TD
 
 ## Mission fit
 
-The system is a CLI chat agent for non-technical Store and Regional Managers. It uses BigQuery as the only mandatory external service for real data runs; all other prototype state lives in local files or SQLite. The repo is runnable two ways: natively via `pip install -r requirements.txt` and one `.env` file (no Docker required), or fully containerized via the included `Dockerfile`/`docker-compose.yml` for a reviewer who prefers not to manage a local Python environment. Docker is optional per the assignment brief, not a requirement.
+The system is a CLI chat agent for non-technical Store and Regional Managers. It uses BigQuery as the only mandatory external service for real data runs; all other prototype state lives in local files or SQLite. The repo is runnable two ways: natively via `pip install -r requirements.txt` and one `.env` file (no Docker required), or fully containerized via the included `Dockerfile`/`docker-compose.yml` for anyone who prefers not to manage a local Python environment. Docker is optional, not a requirement.
 
 ## Technology choices
 
@@ -187,7 +187,7 @@ The dataset represents an online retailer. There is no physical branch or store 
 
 ## Assumptions and trade-offs
 
-- The local embedding fallback is deterministic and credential-free. It preserves startup indexing and query-time semantic-search flow for reviewers without requiring Gemini embedding credentials. In production, set `USE_STUB_LLM=false` and provide `GEMINI_API_KEY` to use Gemini embeddings.
+- The local embedding fallback is deterministic and credential-free. It preserves startup indexing and query-time semantic-search flow without requiring Gemini embedding credentials. In production, set `USE_STUB_LLM=false` and provide `GEMINI_API_KEY` to use Gemini embeddings.
 - The CLI and eval enter through the compiled graph runtime. Installing `requirements.txt` uses the real `StateGraph`, persistent SQLite `SqliteSaver`, `interrupt()` and resume flow. If LangGraph itself is absent in a minimal test environment, a local compiled-graph shim exercises the same node order; real graph runtime errors are logged and surfaced instead of silently falling back to a second pipeline.
 - The public schema has `num_of_item` / `num_of_items` drift across sources; startup reconciliation treats either spelling as acceptable for `orders`.
 - Local CLI auth uses `config/users.yaml` demo tokens to remove the bare `--user-id` impersonation hole. This is not enterprise auth; production must issue `user_id` from the authenticated SSO/IAM session.

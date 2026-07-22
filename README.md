@@ -1,8 +1,10 @@
-# Retail Insights Agent
+# Governed Text-to-SQL Agent
 
-CLI-only Retail Insights Agent for a retail take-home assignment. The prototype answers non-technical manager questions over `bigquery-public-data.thelook_ecommerce`, grounds SQL generation with a Golden Bucket of prior analyst trios, masks PII deterministically, manages saved reports with owner-scoped destructive-operation oversight, self-heals bounded SQL failures, and emits structured JSONL telemetry.
+A governed natural-language analytics agent over `bigquery-public-data.thelook_ecommerce`. Non-technical managers ask business questions in plain language; the agent classifies intent, grounds SQL generation with a Golden Bucket of prior analyst Question→SQL→Report trios, validates every query through layered guardrails, masks PII deterministically, manages saved reports with owner-scoped destructive-operation oversight, self-heals bounded SQL failures, and emits structured JSONL telemetry.
 
-The repository is intentionally local-first: no mandatory external services beyond BigQuery for real data runs, and Docker is optional, not required. Local smoke tests use a deterministic stub LLM and mock BigQuery runner so reviewers can run the repo immediately either natively (below) or via the included `Dockerfile`/`docker-compose.yml` (see [Docker (optional)](#docker-optional)).
+It is a reference implementation of the governance patterns I apply in client analytics and agent work, built entirely on public data so every control is inspectable end to end. An **N8N automation workflow** (`retail_insights_agent_n8n_production.json`, diagram in `n8n_workflow.png`) wraps the agent for event-driven and scheduled operation.
+
+The repository is local-first: no mandatory external services beyond BigQuery for real data runs, and Docker is optional. Local smoke tests use a deterministic stub LLM and mock BigQuery runner so anyone can run the repo immediately, either natively (below) or via the included `Dockerfile`/`docker-compose.yml`.
 
 ## Architecture
 
@@ -38,7 +40,7 @@ flowchart TD
     LLM --> REP
 ```
 
-The full high-level design — technology-choice reasoning, data flow, error handling and fallback strategy, observability, and a requirement-by-requirement walkthrough — is in [docs/HLD.md](docs/HLD.md). The spec-to-implementation map is in [docs/COMPLIANCE_MATRIX.md](docs/COMPLIANCE_MATRIX.md).
+The full high-level design — technology-choice reasoning, data flow, error handling and fallback strategy, observability, and a requirement-by-requirement walkthrough — is in [docs/HLD.md](docs/HLD.md). The requirement-to-implementation map is in [docs/COMPLIANCE_MATRIX.md](docs/COMPLIANCE_MATRIX.md).
 
 ## Quick start
 
@@ -62,7 +64,7 @@ Pass rate: 10/10 = 100%
 ## Docker (optional)
 
 Docker is not required (the Quick start above needs only Python), but a `Dockerfile` and
-`docker-compose.yml` are included for reviewers who prefer a fully containerized run. Both
+`docker-compose.yml` are included for a fully containerized run. Both
 paths run the identical stub-LLM/mock-BigQuery smoke tests — no GCP or Gemini credentials
 needed:
 
@@ -212,11 +214,11 @@ src/observability/            JSONL telemetry and /stats aggregation
 evaluation/                   golden cases and execution-based eval runner
 tests/                        unit + integration tests
 docs/HLD.md                   architecture, data flow, and requirement walkthrough
-docs/COMPLIANCE_MATRIX.md     implementation map back to the master spec
+docs/COMPLIANCE_MATRIX.md     requirement-to-implementation map
 docs/MANAGER_GUIDE.md         plain-language user guide for non-technical managers
 ```
 
-## Design notes reviewers usually check
+## Design notes worth checking
 
 PII protection starts at SQL generation and validation, not only in Python masking. The SQL generator is instructed never to project `email|phone|street_address|postal_code`; `sql_guardrails.py` rejects SELECT projections containing those PII/quasi-PII columns and also rejects wildcard projections such as `SELECT *` / `SELECT u.*` so raw PII columns cannot be materialized accidentally. BigQuery rows are still deterministically masked immediately after materialization, before rows can be serialized into any reporter prompt. A regex safety net also masks free text and final prose.
 
@@ -233,6 +235,14 @@ python -m src.knowledge.promote_trio <feedback_id> --reviewed
 ```
 
 The script refuses unsafe placeholders unless `--allow-draft` is used. With `--reviewed`, it writes the promoted YAML and rebuilds the Golden Bucket index, preventing silent Golden Bucket poisoning while satisfying the CLI-only promotion workflow.
+
+## N8N automation workflow
+
+The agent can run headless behind an N8N workflow for event-driven or scheduled analytics
+(`retail_insights_agent_n8n_production.json`; visual overview in `n8n_workflow.png`). The
+workflow handles trigger, request shaping, the agent call over its API boundary, structured-output
+parsing, and downstream delivery, so the same governed pipeline that runs in the CLI can be
+operated as an automation without changing the safety controls.
 
 ## Optional tracing
 
@@ -265,9 +275,5 @@ python evaluation/run_evals.py --mode live --refresh-cache
 python evaluation/run_evals.py --mode live
 ```
 
-See `docs/SPEC_COHERENCE_FIXES.md` for the final audit corrections.
 
 
-## Latest reviewer patch
-
-The latest artifact includes concrete fixes for wildcard PII projection, silent graph fallback, row-aware eval comparison, local CLI auth, router false positives, delete synonyms, and LIKE wildcard escaping. See `docs/REVIEWER_PATCHES.md`.
